@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIRUS HUNTER 2.0 | BYTECRAFT</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#2b1823;
+ color:#fff4ed;
+ text-align:center;
+}
+header{padding:22px 10px;color:#ff91c8}
+h1{margin:5px;font-size:clamp(25px,6vw,40px)}
+.panel{
+ max-width:760px;
+ margin:15px auto;
+ padding:20px;
+ background:#492b3a;
+ border:2px solid #ff91c8;
+ border-radius:20px;
+ width:94%;
+}
+button{
+ border:0;
+ padding:13px 20px;
+ margin:5px;
+ border-radius:12px;
+ background:#ff91c8;
+ color:#321d28;
+ font-weight:bold;
+ font-size:16px;
+ cursor:pointer;
+}
+button:active{transform:scale(.96)}
+.hidden{display:none!important}
+.stats{
+ display:flex;
+ justify-content:space-around;
+ gap:8px;
+ flex-wrap:wrap;
+ margin:10px 0;
+}
+.stat{
+ background:#321d28;
+ border-radius:10px;
+ padding:12px;
+ flex:1;
+ min-width:85px;
+}
+#arena{
+ height:390px;
+ max-height:55vh;
+ min-height:280px;
+ position:relative;
+ overflow:hidden;
+ background:radial-gradient(#65405a,#241722);
+ border:2px solid #ff91c8;
+ border-radius:15px;
+ touch-action:manipulation;
+}
+#player{
+ position:absolute;
+ bottom:15px;
+ left:50%;
+ transform:translateX(-50%);
+ font-size:40px;
+}
+.falling{
+ position:absolute;
+ top:-40px;
+ font-size:30px;
+}
+#message{line-height:1.6;color:#ffd7eb}
+.controls{display:flex;justify-content:center;flex-wrap:wrap}
+footer{padding:15px;color:#d7b6c8;font-size:12px}
+</style>
+</head>
+
+<body>
+<header>
+ <div>🧬 BYTECRAFT PRESENTS</div>
+ <h1>🦠 VIRUS HUNTER 2.0</h1>
+ <div>SMART SCHOOL HEALTH</div>
+</header>
+
+<section id="menu" class="panel">
+ <h2>SELAMATKAN MAKMAL!</h2>
+ <p>Elakkan virus dan kumpulkan perisai untuk bertahan selama 45 saat.</p>
+ <p>🎮 A = kiri · B = kanan · A+B = perisai</p>
+ <button onclick="startGame()">MULA BERMAIN ▶</button>
+ <h3>📘 Misi Hunter</h3>
+ <p id="message">Jaga diri, elakkan virus dan kumpul item perlindungan!</p>
+</section>
+
+<section id="game" class="panel hidden">
+ <div class="stats">
+  <div class="stat">⭐ SKOR<br><b id="score">0</b></div>
+  <div class="stat">❤️ NYAWA<br><b id="lives">3</b></div>
+  <div class="stat">⏱️ MASA<br><b id="time">45</b></div>
+  <div class="stat">🛡️ PERISAI<br><b id="shields">0</b></div>
+ </div>
+
+ <div id="arena">
+  <div id="player">🧑‍🔬</div>
+ </div>
+
+ <div class="controls">
+  <button id="left">⬅️ KIRI</button>
+  <button onclick="useShield()">🛡️ PERISAI</button>
+  <button id="right">KANAN ➡️</button>
+ </div>
+
+ <p id="tip">💡 Basuh tangan dengan sabun untuk membantu mengurangkan penyebaran kuman.</p>
+ <button onclick="quitGame()">KELUAR</button>
+</section>
+
+<section id="result" class="panel hidden">
+ <h2 id="resultTitle">CABARAN SELESAI!</h2>
+ <h1 id="finalScore">0</h1>
+ <p>JUMLAH SKOR</p>
+ <p id="resultMessage"></p>
+ <button onclick="startGame()">MAIN LAGI 🔄</button>
+ <button onclick="showMenu()">MENU UTAMA</button>
+</section>
+
+<footer>BYTECRAFT © VIRUS HUNTER 2.0</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let score=0,lives=3,time=45,shields=0;
+let playerX=50,objects=[],playing=false,shieldOn=false;
+let startTime=0,lastTime=0,spawnElapsed=0,animation=0;
+let heldLeft=false,heldRight=false;
+
+const tips=[
+ "💡 Basuh tangan dengan sabun.",
+ "💡 Tutup mulut ketika batuk atau bersin.",
+ "💡 Elakkan berkongsi botol air.",
+ "💡 Beritahu guru jika berasa tidak sihat."
+];
+
+function showMenu(){
+ playing=false;
+ cancelAnimationFrame(animation);
+ clearObjects();
+ $("menu").classList.remove("hidden");
+ $("game").classList.add("hidden");
+ $("result").classList.add("hidden");
+}
+
+function clearObjects(){
+ objects.forEach(o=>o.el.remove());
+ objects=[];
+}
+
+function startGame(){
+ cancelAnimationFrame(animation);
+ clearObjects();
+ score=0;lives=3;time=45;shields=0;
+playerX=50;shieldOn=false;
+ heldLeft=false;heldRight=false;
+ playing=true;
+ $("player").style.left="50%";
+ $("menu").classList.add("hidden");
+ $("result").classList.add("hidden");
+ $("game").classList.remove("hidden");
+ $("tip").textContent=tips[0];
+ updateStats();
+ startTime=performance.now();
+ lastTime=startTime;
+ spawnElapsed=0;
+ animation=requestAnimationFrame(loop);
+}
+
+function updateStats(){
+ $("score").textContent=score;
+ $("lives").textContent="❤️".repeat(Math.max(0,lives));
+ $("time").textContent=time;
+ $("shields").textContent=shields;
+}
+
+function move(direction){
+ if(!playing)return;
+ playerX=Math.max(7,Math.min(93,playerX+direction*7));
+ $("player").style.left=playerX+"%";
+}
+
+function useShield(){
+ if(!playing)return;
+ if(shields>0){
+  shields--;
+  shieldOn=true;
+  setTimeout(()=>shieldOn=false,2500);
+  $("tip").textContent="🛡️ Perisai aktif!";
+  updateStats();
+ }else{
+  $("tip").textContent="Kumpul item 🛡️ untuk mendapatkan perisai.";
+ }
+}
+
+function spawn(){
+ const isShield=Math.random()<0.25;
+ const el=document.createElement("div");
+ el.className="falling";
+ el.textContent=isShield?"🛡️":["🦠","☣️","🧫","🦠"][Math.floor(Math.random()*4)];
+ const obj={
+  el,
+  x:5+Math.random()*90,
+  y:-40,
+  isShield,
+  speed:1.5+Math.random()*1.5
+ };
+ el.style.left=obj.x+"%";
+ $("arena").appendChild(el);
+ objects.push(obj);
+}
+
+function loop(now){
+ if(!playing)return;
+
+ const dt=Math.min(40,now-lastTime);
+ lastTime=now;
+ const elapsed=(now-startTime)/1000;
+ time=Math.max(0,45-Math.floor(elapsed));
+
+ if(heldLeft)move(-0.35);
+ if(heldRight)move(0.35);
+
+ spawnElapsed+=dt;
+ if(spawnElapsed>Math.max(400,900-elapsed*8)){
+  spawn();
+  spawnElapsed=0;
+ }
+
+ const arenaRect=$("arena").getBoundingClientRect();
+ const playerRect=$("player").getBoundingClientRect();
+
+ objects=objects.filter(o=>{
+  o.y+=o.speed*dt/16;
+  o.el.style.top=o.y+"px";
+
+  const r=o.el.getBoundingClientRect();
+  const hit=
+   r.bottom>playerRect.top+8 &&
+   r.top<playerRect.bottom &&
+   r.right>playerRect.left+5 &&
+   r.left<playerRect.right-5;
+
+  if(hit){
+   o.el.remove();
+   if(o.isShield){
+    shields++;
+    score+=5;
+   }else if(shieldOn){
+    score+=2;
+   }else{
+    lives--;
+    $("tip").textContent="⚠️ Terkena virus! Cuba elak lebih awal.";
+    if(lives<=0){
+     updateStats();
+     finish(false);
+    }
+   }
+   updateStats();
+   return false;
+  }
+
+  if(o.y>arenaRect.height+30){
+   o.el.remove();
+   if(!o.isShield)score++;
+   updateStats();
+   return false;
+  }
+  return true;
+ });
+
+ if(Math.floor(elapsed)%9===0 && Math.floor(elapsed)>0){
+  const index=Math.floor(elapsed/9)%tips.length;
+  $("tip").textContent=tips[index];
+ }
+
+ updateStats();
+
+ if(time<=0){
+  finish(true);
+  return;
+ }
+
+ animation=requestAnimationFrame(loop);
+}
+
+function finish(won){
+ if(!playing)return;
+ playing=false;
+ cancelAnimationFrame(animation);
+ $("game").classList.add("hidden");
+ $("result").classList.remove("hidden");
+ $("resultTitle").textContent=won?
+  "🏆 MAKMAL BERJAYA DISELAMATKAN!":
+  "🧪 CUBA LAGI, HUNTER!";
+ $("finalScore").textContent=score;
+ $("resultMessage").textContent=won?
+  "Hebat! Anda bertahan selama 45 saat!":
+  "Nyawa habis. Cuba lagi dan kumpulkan perisai!";
+ clearObjects();
+}
+
+function quitGame(){
+ playing=false;
+ cancelAnimationFrame(animation);
+ clearObjects();
+ showMenu();
+}
+
+function bindHold(id,dir){
+ const el=$(id);
+ el.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  if(dir<0)heldLeft=true;
+  else heldRight=true;
+  move(dir);
+ });
+ ["pointerup","pointercancel","pointerleave"].forEach(event=>{
+  el.addEventListener(event,()=>{
+   if(dir<0)heldLeft=false;
+   else heldRight=false;
+  });
+ });
+}
+bindHold("left",-1);
+bindHold("right",1);
+
+document.addEventListener("keydown",e=>{
+ if(["ArrowLeft","ArrowRight"," "].includes(e.key))e.preventDefault();
+ if(e.repeat)return;
+ if(e.key==="ArrowLeft"||e.key.toLowerCase()==="a")move(-1);
+ if(e.key==="ArrowRight"||e.key.toLowerCase()==="d")move(1);
+ if(e.key===" ")useShield();
+});
+document.addEventListener("keyup",e=>{
+ if(e.key==="ArrowLeft"||e.key.toLowerCase()==="a")heldLeft=false;
+ if(e.key==="ArrowRight"||e.key.toLowerCase()==="d")heldRight=false;
+});
+</script>
+</body>
+</html>
